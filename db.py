@@ -7,29 +7,33 @@ def setup_database():
     c.execute(
             """
             CREATE TABLE IF NOT EXISTS Users (
-            Username varchar(20) UNIQUE
-            );""")
+                Username varchar(20) UNIQUE
+            );
+            """)
     c.execute(
             """
             CREATE TABLE IF NOT EXISTS SessionName (
-            Sessionname VARCHAR(20),
-            Username VARCHAR(20),
-            Active INTEGER,
-            FOREIGN KEY (Username) REFERENCES users(Username),
-            PRIMARY KEY (Sessionname, Username),
-            FOREIGN KEY (Active) REFERENCES Sessions(SessionID)
-            );""")
+                Sessionname VARCHAR(20),
+                Username VARCHAR(20),
+                Active INTEGER,
+                FOREIGN KEY (Username) REFERENCES users(Username),
+                PRIMARY KEY (Sessionname, Username),
+                FOREIGN KEY (Active) REFERENCES Sessions(SessionID)
+            );
+            """)
     c.execute(
             """
             CREATE TABLE IF NOT EXISTS Sessions (
-            SessionID INTEGER PRIMARY KEY,
-            Username VARCHAR(20),
-            Sessionname VARCHAR(20),
-            Start timestamp NOT NULL,
-            Duration INTEGER,
-            FOREIGN KEY (Username) REFERENCES Users(Username)
-            FOREIGN KEY (Sessionname, Username) REFERENCES SessionName(Sessionname, Username)
-            );""")
+                SessionID INTEGER PRIMARY KEY,
+                Username VARCHAR(20),
+                Sessionname VARCHAR(20),
+                Start timestamp NOT NULL,
+                Duration INTEGER,
+                FOREIGN KEY (Username) REFERENCES Users(Username)
+                FOREIGN KEY (Sessionname, Username) 
+                    REFERENCES SessionName(Sessionname, Username)
+            );
+            """)
 
     conn.commit()
 
@@ -45,65 +49,75 @@ def add_user(name):
     try:
         c.execute('INSERT INTO Users (Username) VALUES (?);', (name,))
         conn.commit()
+        return "User " + name + " added"
     except sqlite3.DatabaseError as err:
-        print(err)
+        return err
 
 
 def add_session_name(user, name):
     try:
         c.execute(
-                """INSERT INTO SessionName (Sessionname, Username, Active)
-                VALUES (?, ?, NULL)
-                ;""",
-                (name, user))
+                """
+                INSERT INTO SessionName (Sessionname, Username, Active)
+                VALUES (?, ?, NULL);
+                """, (name, user))
         conn.commit()
         return name + " created"
     except sqlite3.DatabaseError as err:
-        print(err)
+        return err
     
 
 def start_session(user, session_name):
     try:
-        c.execute('SELECT Active FROM SessionName WHERE Username=? AND Sessionname=?', (user, session_name))
+        c.execute(
+                """
+                SELECT Active 
+                FROM SessionName 
+                WHERE Username=? AND Sessionname=?;
+                """, (user, session_name))
         session_id = c.fetchone()
         if (session_id is None):
-            print("Incorrect user or session")
-            return
+            return "Incorrect session"
         if (session_id[0]):
-            print("Session is already active")
-            return
+            return "Session is already active"
         c.execute(
                 """
                 INSERT INTO Sessions (Username, Sessionname, Start)
                 VALUES (?, ?, ?);
-                """,
-                (user, session_name, time()))
+                """, (user, session_name, time()))
         session_id = c.lastrowid
         c.execute(
                 """
                 UPDATE SessionName
                 SET Active=?
                 WHERE Username=? AND Sessionname=?;
-                """,
-                (session_id, user, session_name))
+                """, (session_id, user, session_name))
         conn.commit()
         return "Session " + session_name + " created"
     except sqlite3.DatabaseError as err:
-        print(err)
+        return err
 
 
 def end_session(user, session_name):
     try:
-        c.execute('SELECT Active FROM SessionName WHERE Username=? AND Sessionname=?', (user, session_name))
+        c.execute(
+                """
+                SELECT Active 
+                FROM SessionName 
+                WHERE Username=? AND Sessionname=?;
+                """, (user, session_name))
         session_id = c.fetchone()
         if (session_id is None):
-            print("Incorrect user or session")
-            return
+            return "Incorrect session"
         if (not session_id[0]):
-            print("Session is not active")
-            return
+            return "Session is not active"
         session_id = session_id[0]
-        c.execute('SELECT Start FROM Sessions WHERE SessionID = ?;', (session_id,))
+        c.execute(
+                """
+                SELECT Start 
+                FROM Sessions 
+                WHERE SessionID = ?;
+                """, (session_id,))
         start_time = c.fetchone()[0]
         duration = round(time() - start_time)
         c.execute(
@@ -111,19 +125,18 @@ def end_session(user, session_name):
                 UPDATE Sessions
                 SET Duration=?
                 WHERE SessionID=?;
-                """,
-                (duration, session_id))
+                """, (duration, session_id))
         c.execute(
                 """
                 UPDATE SessionName
                 SET Active=null
                 WHERE Username=? AND Sessionname=?;
-                """, 
-                (user, session_name))
+                """, (user, session_name))
         conn.commit()
-        print("Session " + session_name + " ended after " + str(duration) + " seconds")
+        return "Session " + session_name \
+                + " ended after " + str(duration) + " seconds"
     except sqlite3.DatabaseError as err:
-        print(err)
+        return err
 
 
 def get_all_times(user):
@@ -133,12 +146,10 @@ def get_all_times(user):
                 SELECT Sessionname
                 FROM SessionName
                 WHERE Username=?
-                ;""",
-                (user,))
+                ;""", (user,))
         session_names = c.fetchall()
-        if session_names is None:
-            print("User has no sessions")
-            return
+        if not session_names:
+            return "User has no sessions"
         res = []
         for session in session_names:
             duration = get_total_time(user, session[0])
@@ -146,7 +157,7 @@ def get_all_times(user):
         return res
 
     except sqlite3.DatabaseError as err:
-        print(err)
+        return err
 
 
 def get_total_time(user, session_name):
@@ -156,15 +167,14 @@ def get_total_time(user, session_name):
                 SELECT SUM(Duration) 
                 FROM Sessions 
                 WHERE Username=? AND Sessionname=?
-                ;""",
-                (user, session_name))
+                ;""", (user, session_name))
         duration = c.fetchone()
         if (duration[0] is None):
             return "No finished sessions"
         return duration[0]
 
     except sqlite3.DatabaseError as err:
-        print(err)
+        return err
 
 
 def get_active_sessions(user):
@@ -178,15 +188,14 @@ def get_active_sessions(user):
                     FROM SessionName
                     WHERE Username=?
                 );
-                """,
-                (user,))
+                """, (user,))
         res = c.fetchall()
         for i in range(len(res)):
             res[i] = (ctime(res[i][0]), res[i][1])
         return(res)
 
     except sqlite3.DatabaseError as err:
-        print(err)
+        return err
 
 
 def get_finished_sessions(user, session_name="all"):
@@ -197,27 +206,23 @@ def get_finished_sessions(user, session_name="all"):
                     SELECT Start, Duration, Sessionname
                     FROM Sessions
                     WHERE Username=?
-                    ;""",
-                    (user,))
+                    ;""", (user,))
         else:
             c.execute(
                     """
                     SELECT Start, Duration
                     FROM Sessions
                     WHERE Username=? AND Sessionname=?
-                    ;""",
-                    (user, session_name))
+                    ;""", (user, session_name))
         result = c.fetchall()
         if result is None:
-            print("No such sessions")
-            return
+            return "No such sessions"
         for i in range(len(result)):
             result[i] = (ctime(result[i][0]), result[i][1], result[i][2])
         return result
 
     except sqlite3.DatabaseError as err:
-        print(err)
-
+        return err
 
 
 def get_all_users():
@@ -233,10 +238,15 @@ def get_session_name(user="all"):
         if user == "all":
             c.execute('SELECT Username, Sessionname FROM SessionName')
         else:
-            c.execute('SELECT Sessionname FROM SessionName WHERE Username=?', (user,))
+            c.execute(
+                    """SELECT Sessionname 
+                    FROM SessionName 
+                    WHERE Username=?;
+                    """, (user,))
         return c.fetchall()
+
     except sqlite3.DatabaseError as err:
-        print(err)
+        return err
 
 
 def check_user(user):
@@ -247,11 +257,6 @@ def check_user(user):
     except sqlite3.DatabaseError as err:
         print(err)
         return FALSE
-
-
-def access_db(command):
-    c.execute(command)
-    conn.commit()
 
 
 def fill_tables():
@@ -275,7 +280,6 @@ def fill_tables():
 def run_tests():
     assert(get_all_users()== ['Lome', 'Yamoussoukro', 'Antananarivo', 'Ouagadougou', 'Addis Abeba'])
     assert(get_session_name("Addis Abeba") == [('Play',), ('Work',)])
-    #print(get_session_name("all"))
     start_session("Lome", "Play")
     start_session("Lome", "Play")
     start_session("Lome", "Work")
@@ -292,6 +296,7 @@ def run_tests():
     print(get_finished_sessions("Lome", "all"))
     print(get_all_times("Lome"))
     
+
 if __name__=="__main__":
     drop_tables()
     setup_database()

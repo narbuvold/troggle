@@ -11,7 +11,7 @@ def main():
         else:
             verification = input("User does not exist, Do you want to create a new user [Y/n]\n")
             if not verification or verification == "y":
-                db.add_user(login)
+                print(db.add_user(login))
                 print("Welcome " + login)
                 break
 
@@ -32,17 +32,17 @@ def parse_command(seq):
         GET(seq[1:])
     if seq[0] == "create":
         if seq[1:]:
-            db.add_session_name(user, ' '.join(seq[1:]))
+            print(db.add_session_name(user, ' '.join(seq[1:])))
         else:
             print("usage: create <session type>")
     if seq[0] == "start":
         if seq[1:]:
-            db.start_session(user, ' '.join(seq[1:]))
+            print(db.start_session(user, ' '.join(seq[1:])))
         else:
             print("usage: start <session type>")
     if seq[0] == "end":
         if seq[1:]:
-            db.end_session(user, ' '.join(seq[1:]))
+            print(db.end_session(user, ' '.join(seq[1:])))
         else:
             print("usage: end <session type>")
     if seq[0] == "reset":
